@@ -1,6 +1,7 @@
+# config_flow.py
 from homeassistant import config_entries
 import voluptuous as vol
-from .const import DOMAIN  # Se till att DOMAIN = "elpris" finns i const.py
+from .const import DOMAIN, PRICE_AREAS
 
 class ElprisConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Hantera ett konfigurationsflöde för Elpris."""
@@ -10,13 +11,22 @@ class ElprisConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         """Hanterar första steget i konfigurationen."""
         errors = {}
+        
         if user_input is not None:
-            # Skapa en config entry
-            return self.async_create_entry(title=f"Elpris (Område {user_input['område']})", data=user_input)
+            # Skapa en config entry med områdets namn
+            area_name = PRICE_AREAS[str(user_input['område'])]
+            return self.async_create_entry(
+                title=f"Elpris ({area_name})", 
+                data=user_input
+            )
 
-        # Schema för formuläret
+        # Schema för formuläret med områdesnamn
+        area_options = {int(k): v for k, v in PRICE_AREAS.items()}
+        
         data_schema = vol.Schema({
-            vol.Required("område", default=1): vol.In([1, 2, 3, 4]),
+            vol.Required("område", default=1): vol.In(
+                {k: v for k, v in area_options.items()}
+            ),
             vol.Required("update_interval", default=5): int,
         })
 

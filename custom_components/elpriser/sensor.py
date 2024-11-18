@@ -2,12 +2,16 @@
 from datetime import timedelta
 import logging
 import aiohttp
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import (
+    SensorEntity,
+    SensorDeviceClass,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
-from .const import DOMAIN
+from .const import DOMAIN, PRICE_AREAS
 
 LOGGER = logging.getLogger(__name__)
 
@@ -18,12 +22,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up the sensor platform."""
     try:
-        # Hämta konfigurationsdata
         config_data = hass.data[DOMAIN][config_entry.entry_id]
         område = config_data["område"]
         update_interval = config_data["update_interval"]
-
-        LOGGER.debug(f"Setting up sensors for område: {område}")
 
         async def async_fetch_data():
             """Fetch data from API."""
@@ -47,24 +48,34 @@ async def async_setup_entry(
             update_interval=timedelta(minutes=update_interval),
         )
 
-        # Fetch initial data
         await coordinator.async_config_entry_first_refresh()
 
         sensors = [
             ElprisSensor(coordinator, "current_price", "Nuvarande Pris"),
             ElprisSensor(coordinator, "max_price", "Högsta Pris"),
             ElprisSensor(coordinator, "min_price", "Lägsta Pris"),
+            ElprisSensor(coordinator, "average_price", "Genomsnittspris"),
+            ElprisSensor(coordinator, "next_hour_price", "Nästa Timmes Pris"),
+            ElprisSensor(coordinator, "previous_hour_price", "Föregående Timmes Pris"),
+            ElprisTextSensor(coordinator, "price_trend", "Pristrend"),
+            ElprisTextSensor(coordinator, "area_name", "Område"),
+            ElprisTextSensor(coordinator, "tid", "Aktuell Tidsperiod"),
+            ElprisTextSensor(coordinator, "lowest_price_hour", "Billigaste Timmen"),
+            ElprisTextSensor(coordinator, "highest_price_hour", "Dyraste Timmen"),
+            # Charging period sensors
+            ElprisTextSensor(coordinator, "best_charging_period.start_time", "Bästa Laddperiod Start"),
+            ElprisNumberSensor(coordinator, "best_charging_period.duration", "Bästa Laddperiod Längd", "h"),
+            ElprisSensor(coordinator, "best_charging_period.average_price", "Bästa Laddperiod Snittpris"),
         ]
 
         async_add_entities(sensors)
-        LOGGER.debug(f"Added {len(sensors)} sensors")
 
     except Exception as e:
         LOGGER.error(f"Error setting up sensors: {str(e)}")
         raise
 
 class ElprisSensor(CoordinatorEntity, SensorEntity):
-    """Representation of a Sensor."""
+    """Representation of a Price Sensor."""
 
     def __init__(self, coordinator, sensor_type, name):
         """Initialize the sensor."""
@@ -73,6 +84,8 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         self._name = name
         self._attr_unique_id = f"{DOMAIN}_{sensor_type}"
         self._attr_native_unit_of_measurement = "kr/kWh"
+        self._attr_device_class = SensorDeviceClass.MONETARY
+        self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def name(self):
@@ -84,4 +97,31 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         """Return the state of the sensor."""
         if self.coordinator.data is None:
             return None
-        return self.coordinator.data.get(self._sensor_type)
+        
+        # Hantera nästlade värden (t.ex. best_charging_period.average_price)
+        keys = self._sensor_type.split('.')
+        value = self.coordinator.data
+        for key in keys:
+            if isinstance(value, dict) and key in value:
+                value = value[key]
+            else:
+                return None
+        return value
+
+class ElprisTextSensor(ElprisSensor):
+    """Representation of a Text Sensor."""
+
+    def __init__(self, coordinator, sensor_type, name):
+        """Initialize the sensor."""
+        super().__init__(coordinator, sensor_type, name)
+        self._attr_native_unit_of_measurement = None
+        self._attr_device_class = None
+
+class ElprisNumberSensor(ElprisSensor):
+    """Representation of a Number Sensor."""
+
+    def __init__(self, coordinator, sensor_type, name, unit):
+        """Initialize the sensor."""
+        super().__init__(coordinator, sensor_type, name)
+        self._attr_native_unit_of_measurement = unit
+        self._attr_device_class = None
