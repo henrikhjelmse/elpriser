@@ -51,21 +51,19 @@ async def async_setup_entry(
         await coordinator.async_config_entry_first_refresh()
 
         sensors = [
-            ElprisSensor(coordinator, "current_price", "Nuvarande Pris"),
-            ElprisSensor(coordinator, "max_price", "Högsta Pris"),
-            ElprisSensor(coordinator, "min_price", "Lägsta Pris"),
-            ElprisSensor(coordinator, "average_price", "Genomsnittspris"),
-            ElprisSensor(coordinator, "next_hour_price", "Nästa Timmes Pris"),
-            ElprisSensor(coordinator, "previous_hour_price", "Föregående Timmes Pris"),
+            ElprisPriceSensor(coordinator, "current_price", "Nuvarande Pris"),
+            ElprisPriceSensor(coordinator, "max_price", "Högsta Pris"),
+            ElprisPriceSensor(coordinator, "min_price", "Lägsta Pris"),
+            ElprisPriceSensor(coordinator, "average_price", "Genomsnittspris"),
+            ElprisPriceSensor(coordinator, "next_hour_price", "Nästa Timmes Pris"),
+            ElprisPriceSensor(coordinator, "previous_hour_price", "Föregående Timmes Pris"),
             ElprisTextSensor(coordinator, "price_trend", "Pristrend"),
-            ElprisTextSensor(coordinator, "area_name", "Område"),
             ElprisTextSensor(coordinator, "tid", "Aktuell Tidsperiod"),
             ElprisTextSensor(coordinator, "lowest_price_hour", "Billigaste Timmen"),
             ElprisTextSensor(coordinator, "highest_price_hour", "Dyraste Timmen"),
-            # Charging period sensors
             ElprisTextSensor(coordinator, "best_charging_period.start_time", "Bästa Laddperiod Start"),
             ElprisNumberSensor(coordinator, "best_charging_period.duration", "Bästa Laddperiod Längd", "h"),
-            ElprisSensor(coordinator, "best_charging_period.average_price", "Bästa Laddperiod Snittpris"),
+            ElprisPriceSensor(coordinator, "best_charging_period.average_price", "Bästa Laddperiod Snittpris"),
         ]
 
         async_add_entities(sensors)
@@ -74,7 +72,7 @@ async def async_setup_entry(
         LOGGER.error(f"Error setting up sensors: {str(e)}")
         raise
 
-class ElprisSensor(CoordinatorEntity, SensorEntity):
+class ElprisPriceSensor(CoordinatorEntity, SensorEntity):
     """Representation of a Price Sensor."""
 
     def __init__(self, coordinator, sensor_type, name):
@@ -85,7 +83,8 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"{DOMAIN}_{sensor_type}"
         self._attr_native_unit_of_measurement = "kr/kWh"
         self._attr_device_class = SensorDeviceClass.MONETARY
-        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_state_class = SensorStateClass.TOTAL
+        self._attr_suggested_display_precision = 3
 
     @property
     def name(self):
@@ -106,22 +105,66 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
                 value = value[key]
             else:
                 return None
-        return value
+        return float(value) if value is not None else None
 
-class ElprisTextSensor(ElprisSensor):
+class ElprisTextSensor(CoordinatorEntity, SensorEntity):
     """Representation of a Text Sensor."""
 
     def __init__(self, coordinator, sensor_type, name):
         """Initialize the sensor."""
-        super().__init__(coordinator, sensor_type, name)
-        self._attr_native_unit_of_measurement = None
-        self._attr_device_class = None
+        super().__init__(coordinator)
+        self._sensor_type = sensor_type
+        self._name = name
+        self._attr_unique_id = f"{DOMAIN}_{sensor_type}"
 
-class ElprisNumberSensor(ElprisSensor):
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return self._name
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor."""
+        if self.coordinator.data is None:
+            return None
+        
+        keys = self._sensor_type.split('.')
+        value = self.coordinator.data
+        for key in keys:
+            if isinstance(value, dict) and key in value:
+                value = value[key]
+            else:
+                return None
+        return str(value) if value is not None else None
+
+class ElprisNumberSensor(CoordinatorEntity, SensorEntity):
     """Representation of a Number Sensor."""
 
     def __init__(self, coordinator, sensor_type, name, unit):
         """Initialize the sensor."""
-        super().__init__(coordinator, sensor_type, name)
+        super().__init__(coordinator)
+        self._sensor_type = sensor_type
+        self._name = name
+        self._attr_unique_id = f"{DOMAIN}_{sensor_type}"
         self._attr_native_unit_of_measurement = unit
-        self._attr_device_class = None
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return self._name
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor."""
+        if self.coordinator.data is None:
+            return None
+        
+        keys = self._sensor_type.split('.')
+        value = self.coordinator.data
+        for key in keys:
+            if isinstance(value, dict) and key in value:
+                value = value[key]
+            else:
+                return None
+        return float(value) if value is not None else None
