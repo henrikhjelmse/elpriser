@@ -1,0 +1,25 @@
+{
+  "title": "Elpriset",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Konfigurera Elpriset",
+        "description": "Välj vilket område (1-4) som ska användas för att hämta elpriset.",
+        "data": {
+          "area": "Område"
+        }
+      }
+    },
+    "error": {
+      "invalid_area": "Ogiltigt område. Ange ett nummer mellan 1 och 4."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Justera inställningar",
+        "description": "Ändra område eller andra inställningar."
+      }
+    }
+  }
+}

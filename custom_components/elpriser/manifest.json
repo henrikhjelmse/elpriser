@@ -1,0 +1,10 @@
+{
+    "domain": "elpris",
+    "name": "Elpris",
+    "version": "1.0.0",
+    "documentation": "https://github.com/henrikhjelmse/elpriser",
+    "requirements": [],
+    "dependencies": [],
+    "codeowners": ["@henrikhjelmse"],
+    "config_flow": true
+}
